@@ -1,0 +1,6 @@
+{
+  "name": "AgroCode: Ladang Otomatis dengan Kendaraan Pertanian",
+  "description": "Simulasi game edukasi pemrograman Python untuk mengotomatiskan kendaraan pertanian darat (traktor, penabur, pemanen, pengangkut) di ladang 3D.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
