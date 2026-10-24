@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { SimulationWorld } from '../engine/farmSimulation';
+import { SimulationWorld, getTotalCargo } from '../engine/farmSimulation';
 import { Direction, ImplementType, TileData, VehicleState } from '../types/game';
-import { getTotalCargo } from '../engine/farmSimulation';
+import { Fuel, Wrench, Package, CheckCircle2, ZoomIn, ZoomOut, Compass } from 'lucide-react';
 
 interface FarmViewport3DProps {
   world: SimulationWorld;
@@ -11,6 +11,8 @@ interface FarmViewport3DProps {
   onSelectVehicle: (id: string) => void;
   onSelectTile?: (tile: TileData) => void;
   cameraPreset: 'isometric' | 'top' | 'follow';
+  onChangeCameraPreset?: (preset: 'isometric' | 'top' | 'follow') => void;
+  onOpenMobileStatus?: () => void;
 }
 
 const TILE_SIZE = 2.2;
@@ -88,9 +90,6 @@ function createRoadTexture(maxAnisotropy: number): THREE.CanvasTexture {
   return tex;
 }
 
-/**
- * Builds a 10-part composite 3D vehicle (Traktor, Pemanen, or Pengangkut) with swappable implements
- */
 function buildCompositeVehicleMesh(
   v: VehicleState,
   shadowTex: THREE.Texture,
@@ -106,7 +105,6 @@ function buildCompositeVehicleMesh(
   const root = new THREE.Group();
   const wheels: THREE.Object3D[] = [];
 
-  // Soft contact shadow grounded at y = 0.02
   const shadowGeo = new THREE.PlaneGeometry(1.9, 1.9);
   const shadowMat = new THREE.MeshBasicMaterial({
     map: shadowTex,
@@ -163,20 +161,17 @@ function buildCompositeVehicleMesh(
     roughness: 0.2,
   });
 
-  // 1. Primary Chassis Hull
   const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.38, 0.76), hullMat);
   chassis.position.set(0, 0.38, 0);
   chassis.castShadow = castShadow;
   chassis.receiveShadow = true;
   root.add(chassis);
 
-  // 2. Engine Hood Nose
   const hood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.62), trimMat);
   hood.position.set(0.32, 0.56, 0);
   hood.castShadow = castShadow;
   root.add(hood);
 
-  // 3. Operator Cabin with Windows & Roof
   const cab = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.52, 0.68), glassMat);
   cab.position.set(-0.22, 0.78, 0);
   cab.castShadow = castShadow;
@@ -187,7 +182,6 @@ function buildCompositeVehicleMesh(
   cabRoof.castShadow = castShadow;
   root.add(cabRoof);
 
-  // 4. Roof Beacon Light
   const beacon = new THREE.Mesh(
     new THREE.CylinderGeometry(0.06, 0.07, 0.1, 12),
     new THREE.MeshStandardMaterial({
@@ -200,20 +194,17 @@ function buildCompositeVehicleMesh(
   beacon.position.set(-0.22, 1.14, 0);
   root.add(beacon);
 
-  // 5. Exhaust Stack Pipe
   const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.52, 10), darkMetalMat);
   exhaust.position.set(0.22, 0.84, 0.26);
   exhaust.castShadow = castShadow;
   root.add(exhaust);
 
-  // 6 & 7. Front Headlights
   const leftLight = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 10), headlightMat);
   leftLight.position.set(0.6, 0.55, 0.2);
   const rightLight = leftLight.clone();
   rightLight.position.set(0.6, 0.55, -0.2);
   root.add(leftLight, rightLight);
 
-  // 8–11. 4 Composite Wheels (Tire + Hub Rim)
   const wheelConfigs = [
     { x: -0.34, y: 0.28, z: 0.44, r: 0.28, w: 0.18 },
     { x: -0.34, y: 0.28, z: -0.44, r: 0.28, w: 0.18 },
@@ -237,12 +228,10 @@ function buildCompositeVehicleMesh(
     wheels.push(wGroup);
   });
 
-  // Cargo Box Indicator (visualizes harvested crops inside vehicle hopper)
   const cargoBoxGroup = new THREE.Group();
   cargoBoxGroup.position.set(-0.24, 1.18, 0);
   root.add(cargoBoxGroup);
 
-  // 12. Implement Attachment Group (Bajak, Penabur, Pemanen)
   const implementGroup = new THREE.Group();
   root.add(implementGroup);
 
@@ -287,7 +276,6 @@ function populateImplementGeometry(
   });
 
   if (implement === 'bajak') {
-    // Rear 3-blade steel plow attachment
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.92), redMat);
     bar.position.set(-0.76, 0.24, 0);
     bar.castShadow = castShadow;
@@ -300,7 +288,6 @@ function populateImplementGeometry(
       group.add(blade);
     });
   } else if (implement === 'penabur') {
-    // Rear seed hopper tank + rotary spreader disc
     const hopper = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.16, 0.42, 12), orangeMat);
     hopper.position.set(-0.75, 0.46, 0);
     hopper.castShadow = castShadow;
@@ -309,7 +296,6 @@ function populateImplementGeometry(
     group.add(hopper, disc);
     cutterReelHolder.ref = disc;
   } else if (implement === 'pemanen') {
-    // Front Combine Harvester Rotary Cutter Header
     const headerBar = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 1.24), orangeMat);
     headerBar.position.set(0.75, 0.24, 0);
     headerBar.castShadow = castShadow;
@@ -332,14 +318,10 @@ function populateImplementGeometry(
   }
 }
 
-/**
- * Builds composite 3D farm buildings (Pom Bensin, Gudang, Bengkel)
- */
 function buildBuildingMesh(type: 'pom_bensin' | 'gudang' | 'bengkel', castShadow: boolean): THREE.Group {
   const g = new THREE.Group();
 
   if (type === 'pom_bensin') {
-    // Concrete pad + Red/Amber Diesel Pump + Canopy Roof + Fuel Tank
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(1.8, 0.08, 1.8),
       new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.8 })
@@ -384,7 +366,6 @@ function buildBuildingMesh(type: 'pom_bensin' | 'gudang' | 'bengkel', castShadow
     canopy.castShadow = castShadow;
     g.add(canopy);
   } else if (type === 'gudang') {
-    // Barn Warehouse + Cylindrical Silo
     const barn = new THREE.Mesh(
       new THREE.BoxGeometry(1.1, 0.85, 1.2),
       new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.7 })
@@ -417,7 +398,6 @@ function buildBuildingMesh(type: 'pom_bensin' | 'gudang' | 'bengkel', castShadow
     siloDome.position.set(0.52, 1.35, -0.2);
     g.add(siloDome);
   } else if (type === 'bengkel') {
-    // Workshop Service Pad + Hoist Gantry + Tool Cabinet
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(1.85, 0.08, 1.85),
       new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.75 })
@@ -457,6 +437,8 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
   onSelectVehicle,
   onSelectTile,
   cameraPreset,
+  onChangeCameraPreset,
+  onOpenMobileStatus,
 }) => {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<SimulationWorld>(world);
@@ -464,6 +446,10 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
   const cameraPresetRef = useRef(cameraPreset);
   const onSelectVehicleRef = useRef(onSelectVehicle);
   const onSelectTileRef = useRef(onSelectTile);
+  const zoomControlRef = useRef<{ zoomIn: () => void; zoomOut: () => void }>({
+    zoomIn: () => {},
+    zoomOut: () => {},
+  });
 
   useEffect(() => {
     worldRef.current = world;
@@ -486,7 +472,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     const container = canvasMountRef.current;
     if (!container) return;
 
-    // 1. Software-WebGL Guard per Three.js Skill Directive
     const isSoftwareGl = (() => {
       const gl = document.createElement('canvas').getContext('webgl2');
       if (!gl) return true;
@@ -516,17 +501,15 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     const scene = new THREE.Scene();
     const skyColor = new THREE.Color(0x18222d);
     scene.background = skyColor;
-    scene.fog = new THREE.FogExp2(0x18222d, 0.018);
+    scene.fog = new THREE.FogExp2(0x18222d, 0.016);
 
-    // 2. Studio Environment Reflection (RoomEnvironment)
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     pmremGenerator.dispose();
 
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.5, 140);
-    camera.position.set(0, 16, 16);
+    const camera = new THREE.PerspectiveCamera(38, width / height, 0.5, 140);
+    camera.position.set(0, 12, 12);
 
-    // 3. Balanced 3-Point Outdoor Lighting Rig
     const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x452719, 0.85);
     hemiLight.position.set(0, 30, 0);
     scene.add(hemiLight);
@@ -551,7 +534,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     rimLight.position.set(-12, 10, -10);
     scene.add(rimLight);
 
-    // Extended outdoor meadow ground surrounding the farm board
     const outerGround = new THREE.Mesh(
       new THREE.PlaneGeometry(160, 160),
       new THREE.MeshStandardMaterial({ color: 0x1e2c22, roughness: 0.95, metalness: 0.02 })
@@ -566,7 +548,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     const tilledTex = createTilledSoilTexture(maxAniso);
     const roadTex = createRoadTexture(maxAniso);
 
-    // Shared materials
     const soilUntilledMat = new THREE.MeshStandardMaterial({
       color: 0x6b442a,
       roughness: 0.9,
@@ -599,7 +580,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     const vehiclesGroup = new THREE.Group();
     scene.add(vehiclesGroup);
 
-    // Selection ring highlight
     const selectRing = new THREE.Mesh(
       new THREE.RingGeometry(0.82, 0.96, 32),
       new THREE.MeshBasicMaterial({ color: 0x22c55e, side: THREE.DoubleSide })
@@ -608,7 +588,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     selectRing.position.y = 0.04;
     scene.add(selectRing);
 
-    // Dynamic registries for current level grid and vehicles
     let builtLevelId = -1;
     let tileMeshes: Array<
       Array<{
@@ -660,7 +639,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
       }
       tileMeshes = [];
 
-      // Farm wooden border frame
       const boardW = wState.width * TILE_SIZE + 0.5;
       const boardH = wState.height * TILE_SIZE + 0.5;
       const baseFrame = new THREE.Mesh(
@@ -681,7 +659,12 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
 
           let mat = soilUntilledMat;
           if (tData.terrain === 'lumpur') mat = mudMat;
-          else if (tData.terrain === 'jalan' || tData.terrain === 'pom_bensin' || tData.terrain === 'gudang' || tData.terrain === 'bengkel') {
+          else if (
+            tData.terrain === 'jalan' ||
+            tData.terrain === 'pom_bensin' ||
+            tData.terrain === 'gudang' ||
+            tData.terrain === 'bengkel'
+          ) {
             mat = roadMat;
           } else if (tData.soil === 'sudah_dibajak') {
             mat = soilTilledMat;
@@ -693,7 +676,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
           baseMesh.userData = { tileX: x, tileZ: z };
           boardGroup.add(baseMesh);
 
-          // Static props on special terrain tiles
           if (tData.terrain === 'batu') {
             const rockGroup = new THREE.Group();
             rockGroup.position.set(wx, 0.04, wz);
@@ -816,13 +798,21 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
       });
     };
 
-    // Mouse / Touch Drag Orbit & Click Raycasting
     let isDragging = false;
     let dragDist = 0;
     let prevX = 0;
     let prevY = 0;
-    let cameraAzimuth = Math.PI / 4;
-    let cameraZoom = 1.0;
+    let cameraAzimuth = Math.PI / 3.2;
+    let cameraZoom = 0.85; // Closer default zoom so the farm fills Android screens nicely
+
+    zoomControlRef.current = {
+      zoomIn: () => {
+        cameraZoom = THREE.MathUtils.clamp(cameraZoom - 0.14, 0.5, 1.5);
+      },
+      zoomOut: () => {
+        cameraZoom = THREE.MathUtils.clamp(cameraZoom + 0.14, 0.5, 1.5);
+      },
+    };
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -853,7 +843,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
         pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
 
-        // Check vehicles first
         for (const [vId, vEntry] of Object.entries(vehicleRenderMap)) {
           const hits = raycaster.intersectObject(vEntry.root, true);
           if (hits.length > 0) {
@@ -862,7 +851,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
           }
         }
 
-        // Check tiles
         const hits = raycaster.intersectObjects(boardGroup.children, false);
         for (const hit of hits) {
           const u = hit.object.userData;
@@ -879,7 +867,7 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      cameraZoom = THREE.MathUtils.clamp(cameraZoom + e.deltaY * 0.001, 0.65, 1.55);
+      cameraZoom = THREE.MathUtils.clamp(cameraZoom + e.deltaY * 0.001, 0.5, 1.5);
     };
 
     const domElem = renderer.domElement;
@@ -888,17 +876,23 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     window.addEventListener('pointerup', onPointerUp);
     domElem.addEventListener('wheel', onWheel, { passive: false });
 
-    const onResize = () => {
+    const updateSize = () => {
       if (!container) return;
       const w = container.clientWidth || window.innerWidth;
       const h = container.clientHeight || window.innerHeight;
+      if (w === 0 || h === 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
-    window.addEventListener('resize', onResize);
 
-    // 4. Animation Loop with Software-WebGL Pacing Guard
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateSize) : null;
+    if (resizeObserver) {
+      resizeObserver.observe(container);
+    }
+    window.addEventListener('resize', updateSize);
+
     const clock = new THREE.Clock();
     let frameId = 0;
 
@@ -925,7 +919,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
 
       rebuildBoardIfNeeded(wState);
 
-      // Sync tile soil & crops
       for (let z = 0; z < wState.height; z++) {
         for (let x = 0; x < wState.width; x++) {
           const tData = wState.tiles[z][x];
@@ -945,7 +938,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
         }
       }
 
-      // Sync vehicles with smooth damping
       for (const [vId, vData] of Object.entries(wState.vehicles)) {
         const { wx, wz } = gridToWorld(vData.x, vData.z, wState.width, wState.height);
         const targetAngle = directionToAngle(vData.direction);
@@ -966,7 +958,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
           vehicleRenderMap[vId] = vEntry;
         }
 
-        // Update implement if changed
         if (vEntry.currentImplement !== vData.implement) {
           const holder: { ref: THREE.Object3D | null } = { ref: null };
           populateImplementGeometry(vEntry.implementGroup, vData.implement, !isSoftwareGl, holder);
@@ -974,7 +965,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
           vEntry.currentImplement = vData.implement;
         }
 
-        // Update cargo visual crates
         const cargoTotal = getTotalCargo(vData.cargo);
         if (vEntry.lastCargoCount !== cargoTotal) {
           while (vEntry.cargoBoxGroup.children.length > 0) {
@@ -997,7 +987,6 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
         vEntry.currX = THREE.MathUtils.damp(vEntry.currX, wx, 10, dt);
         vEntry.currZ = THREE.MathUtils.damp(vEntry.currZ, wz, 10, dt);
 
-        // Shortest-angle interpolation
         let angleDiff = targetAngle - vEntry.currAngle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
@@ -1021,25 +1010,31 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
         }
       }
 
-      // Smooth Camera Choreography
+      // Aspect-aware Camera Framing so the farm fills Android screens cleanly
       const preset = cameraPresetRef.current;
       const selEntry = vehicleRenderMap[selectedVehicleRef.current];
+      const aspect = camera.aspect || 1;
+      const aspectCompensation = aspect < 1 ? 1 / Math.max(0.58, aspect) : 1.0;
+
       if (preset === 'follow' && selEntry) {
-        _camTarget.set(selEntry.currX, 0.4, selEntry.currZ);
+        _camTarget.set(selEntry.currX, 0.3, selEntry.currZ);
+        const r = 7.5 * cameraZoom * aspectCompensation;
         _desiredCamPos.set(
-          selEntry.currX + Math.cos(cameraAzimuth) * 9 * cameraZoom,
-          8.5 * cameraZoom,
-          selEntry.currZ + Math.sin(cameraAzimuth) * 9 * cameraZoom
+          selEntry.currX + Math.cos(cameraAzimuth) * r,
+          6.8 * cameraZoom * aspectCompensation,
+          selEntry.currZ + Math.sin(cameraAzimuth) * r
         );
       } else if (preset === 'top') {
         _camTarget.set(0, 0, 0);
-        _desiredCamPos.set(0, 22 * cameraZoom, 0.01);
+        const topDist = Math.max(wState.width, wState.height) * 2.5 * cameraZoom * aspectCompensation;
+        _desiredCamPos.set(0, topDist, 0.01);
       } else {
-        _camTarget.set(0, 0, 0);
-        const radius = Math.max(wState.width, wState.height) * 2.35 * cameraZoom;
+        _camTarget.set(0, -0.3, 0);
+        const baseSpan = Math.max(wState.width * 0.9, wState.height * 1.05);
+        const radius = baseSpan * 1.95 * cameraZoom * aspectCompensation;
         _desiredCamPos.set(
           Math.cos(cameraAzimuth) * radius,
-          radius * 0.82,
+          radius * 0.74,
           Math.sin(cameraAzimuth) * radius
         );
       }
@@ -1064,11 +1059,12 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     return () => {
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
+      if (resizeObserver) resizeObserver.disconnect();
       domElem.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       domElem.removeEventListener('wheel', onWheel);
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', updateSize);
       renderer.dispose();
       if (domElem.parentNode === container) {
         container.removeChild(domElem);
@@ -1076,21 +1072,92 @@ export const FarmViewport3D: React.FC<FarmViewport3DProps> = ({
     };
   }, []);
 
-  // Floating 2D Vehicle Callouts & Action Badges
   const vehiclesList = Object.values(world.vehicles);
+  const activeV = world.vehicles[selectedVehicleId] || vehiclesList[0];
+  const m = world.metrics;
+  const cargoCount = activeV ? getTotalCargo(activeV.cargo) : 0;
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#121518]">
       {/* Dedicated WebGL Mount Container */}
       <div ref={canvasMountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Non-occluding Top-Center Active Vehicle Action Pill */}
-      <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+      {/* Compact Top-Left Mobile/Android Telemetry Strip (Always visible on < lg screens) */}
+      {activeV && (
+        <div className="lg:hidden absolute top-2 left-2 right-12 z-10 flex flex-wrap items-center gap-1.5 pointer-events-auto">
+          <button
+            type="button"
+            onClick={onOpenMobileStatus}
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#16191E]/95 border border-[#2D333D] text-[11px] font-mono tabular-nums text-zinc-200 shadow-md cursor-pointer"
+          >
+            <span className="flex items-center gap-1 text-amber-300 font-semibold">
+              <Fuel className="w-3 h-3" />
+              {activeV.fuel}L
+            </span>
+            <span className="text-zinc-600">·</span>
+            <span className="flex items-center gap-1 text-sky-300">
+              <Wrench className="w-3 h-3" />
+              {activeV.condition}%
+            </span>
+            <span className="text-zinc-600">·</span>
+            <span className="flex items-center gap-1 text-emerald-300">
+              <Package className="w-3 h-3" />
+              {cargoCount}/{activeV.maxCargo}
+            </span>
+            <span className="text-zinc-600">·</span>
+            <span className="flex items-center gap-1 text-zinc-300">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              Panen: {m.harvestedTotal}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Touch-Friendly Zoom & Camera Angle Mini Controls (Top-Right of 3D Viewport on Android/Mobile) */}
+      <div className="lg:hidden absolute top-2 right-2 z-10 flex flex-col gap-1 pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => zoomControlRef.current.zoomIn()}
+          className="w-7 h-7 rounded-md bg-[#16191E]/95 border border-[#2D333D] flex items-center justify-center text-zinc-300 active:bg-emerald-600 active:text-white shadow cursor-pointer"
+          title="Perbesar Ladang (Zoom In)"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomControlRef.current.zoomOut()}
+          className="w-7 h-7 rounded-md bg-[#16191E]/95 border border-[#2D333D] flex items-center justify-center text-zinc-300 active:bg-emerald-600 active:text-white shadow cursor-pointer"
+          title="Perkecil Ladang (Zoom Out)"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+        {onChangeCameraPreset && (
+          <button
+            type="button"
+            onClick={() => {
+              const next =
+                cameraPreset === 'isometric'
+                  ? 'top'
+                  : cameraPreset === 'top'
+                  ? 'follow'
+                  : 'isometric';
+              onChangeCameraPreset(next);
+            }}
+            className="w-7 h-7 rounded-md bg-[#16191E]/95 border border-[#2D333D] flex items-center justify-center text-emerald-400 active:bg-emerald-600 active:text-white shadow cursor-pointer"
+            title="Ganti Sudut Kamera (3D / Atas / Ikuti)"
+          >
+            <Compass className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Active Vehicle Action Badge */}
+      <div className="pointer-events-none absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
         {vehiclesList.map((v) =>
           v.actionLabel ? (
             <div
               key={v.id}
-              className="px-3 py-1 rounded bg-[#181B20]/95 border border-emerald-500/40 text-xs font-mono text-emerald-300 shadow-lg"
+              className="px-2.5 py-0.5 rounded bg-[#181B20]/95 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 shadow-lg"
             >
               [{v.codeAlias}] {v.actionLabel}
             </div>

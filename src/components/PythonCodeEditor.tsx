@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Code2, RotateCcw, Sparkles, BookOpen, AlertTriangle, Terminal } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Code2, RotateCcw, Sparkles, BookOpen, AlertTriangle, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface PythonCodeEditorProps {
   code: string;
@@ -38,7 +38,6 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
   errorLine,
   errorMessage,
   isRunning,
-  levelTitle,
   onResetCode,
   onLoadSolution,
   onLoadPdfDemoScript,
@@ -46,6 +45,7 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
+  const [showQuickSnippets, setShowQuickSnippets] = useState<boolean>(true);
 
   const lines = code.split('\n');
 
@@ -110,94 +110,99 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#16191E] border border-[#2A2F37] rounded-lg overflow-hidden shadow-2xl">
-      {/* Terminal Window Title Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#1E2229] border-b border-[#2A2F37] shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
-          </div>
+    <div className="flex flex-col h-full bg-[#16191E] border border-[#2A2F37] rounded-lg overflow-hidden shadow-xl">
+      {/* Compact Android-friendly Terminal Title Bar */}
+      <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#1E2229] border-b border-[#2A2F37] shrink-0 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
           <Terminal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="text-xs font-mono font-semibold text-zinc-200 truncate">
-            FIELD SCRIPT - VE01.py
+          <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-200 truncate">
+            VE01.py
           </span>
-          <span className="hidden sm:inline text-xs text-zinc-500 truncate">
-            · {levelTitle}
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowQuickSnippets((v) => !v)}
+            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#262B33] hover:bg-[#313842] text-[10px] font-mono text-zinc-300 transition-colors cursor-pointer shrink-0"
+            title="Tampilkan/Sembunyikan Baris Tombol Cepat"
+          >
+            <span>Snippets</span>
+            {showQuickSnippets ? (
+              <ChevronUp className="w-3 h-3" />
+            ) : (
+              <ChevronDown className="w-3 h-3" />
+            )}
+          </button>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={onOpenApiDocs}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-zinc-300 bg-[#262B33] hover:bg-[#313842] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-200 bg-[#262B33] hover:bg-[#313842] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             title="Python API Reference"
           >
-            <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
-            <span>API Docs</span>
+            <BookOpen className="w-3 h-3 text-emerald-400" />
+            <span>API</span>
           </button>
           <button
             type="button"
             onClick={onLoadPdfDemoScript}
             disabled={isRunning}
-            className="hidden md:flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded transition-colors whitespace-nowrap shrink-0 disabled:opacity-40 cursor-pointer"
-            title="Load PDF Page 1 Concept Script (VE01 Combine-A)"
+            className="hidden sm:flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded transition-colors whitespace-nowrap shrink-0 disabled:opacity-40 cursor-pointer"
+            title="Load PDF Page 1 Concept Script"
           >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>PDF Script</span>
+            <Code2 className="w-3 h-3" />
+            <span>PDF</span>
           </button>
           <button
             type="button"
             onClick={onLoadSolution}
             disabled={isRunning}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded transition-colors whitespace-nowrap shrink-0 disabled:opacity-40 cursor-pointer"
-            title="Load Solution Code for Current Level"
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded transition-colors whitespace-nowrap shrink-0 disabled:opacity-40 cursor-pointer"
+            title="Load Solution Code"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3 h-3" />
             <span>Solusi</span>
           </button>
           <button
             type="button"
             onClick={onResetCode}
             disabled={isRunning}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-[#262B33] hover:bg-[#313842] rounded transition-colors whitespace-nowrap shrink-0 disabled:opacity-40 cursor-pointer"
+            className="p-1 text-zinc-400 hover:text-zinc-200 bg-[#262B33] hover:bg-[#313842] rounded transition-colors shrink-0 disabled:opacity-40 cursor-pointer"
             title="Reset to Starter Code"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3 h-3" />
           </button>
         </div>
       </div>
 
-      {/* Quick-Touch Command Bar (English Python snippets) */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1A1D24] border-b border-[#262B33] overflow-x-auto shrink-0">
-        <span className="text-[11px] font-mono text-zinc-400 shrink-0 mr-1">
-          Quick Insert:
-        </span>
-        {QUICK_SNIPPETS.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            disabled={isRunning}
-            onClick={() => insertSnippet(item.snippet)}
-            className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 ${
-              item.category === 'aksi'
-                ? 'bg-emerald-950/50 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/60'
-                : item.category === 'logistik'
-                ? 'bg-amber-950/50 border-amber-700/40 text-amber-300 hover:bg-amber-900/60'
-                : 'bg-sky-950/50 border-sky-700/40 text-sky-300 hover:bg-sky-900/60'
-            }`}
-          >
-            +{item.label}
-          </button>
-        ))}
-      </div>
+      {/* Collapsible Quick-Insert Command Bar */}
+      {showQuickSnippets && (
+        <div className="flex items-center gap-1 px-2 py-1 bg-[#1A1D24] border-b border-[#262B33] overflow-x-auto shrink-0">
+          {QUICK_SNIPPETS.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              disabled={isRunning}
+              onClick={() => insertSnippet(item.snippet)}
+              className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 ${
+                item.category === 'aksi'
+                  ? 'bg-emerald-950/50 border-emerald-700/40 text-emerald-300 hover:bg-emerald-900/60'
+                  : item.category === 'logistik'
+                  ? 'bg-amber-950/50 border-amber-700/40 text-amber-300 hover:bg-amber-900/60'
+                  : 'bg-sky-950/50 border-sky-700/40 text-sky-300 hover:bg-sky-900/60'
+              }`}
+            >
+              +{item.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Main Editor Body with Line Gutter & Active Execution Line Highlight */}
+      {/* Main Editor Body with Compact Line Height for Maximum Visible Lines on Android */}
       <div className="relative flex-1 flex min-h-0 overflow-hidden bg-[#13161A]">
         <div
           ref={gutterRef}
-          className="w-11 py-3 bg-[#16191E] border-r border-[#232830] text-right select-none overflow-hidden shrink-0"
+          className="w-9 py-2 bg-[#16191E] border-r border-[#232830] text-right select-none overflow-hidden shrink-0"
         >
           {lines.map((_, idx) => {
             const ln = idx + 1;
@@ -206,7 +211,7 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
             return (
               <div
                 key={ln}
-                className={`px-2 text-xs font-mono leading-6 tabular-nums ${
+                className={`px-1.5 text-[11px] sm:text-xs font-mono leading-5 tabular-nums ${
                   isErr
                     ? 'bg-red-500/30 text-red-300 font-bold'
                     : isCurrent
@@ -232,16 +237,16 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
             autoCapitalize="off"
             autoComplete="off"
             autoCorrect="off"
-            className="code-input w-full h-full py-3 px-3 bg-transparent text-zinc-100 font-mono text-xs sm:text-[13px] leading-6 resize-none focus:outline-none overflow-auto selection:bg-emerald-500/30"
+            className="code-input w-full h-full py-2 px-2.5 bg-transparent text-zinc-100 font-mono text-[12px] sm:text-[13px] leading-5 resize-none focus:outline-none overflow-auto selection:bg-emerald-500/30"
             placeholder="# Write Python code to control tractor, harvester, and hauler..."
           />
         </div>
       </div>
 
       {errorMessage && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-red-950/90 border-t border-red-500/40 text-xs text-red-200 shrink-0">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <div className="font-mono leading-relaxed">{errorMessage}</div>
+        <div className="flex items-start gap-1.5 px-2.5 py-1.5 bg-red-950/90 border-t border-red-500/40 text-[11px] text-red-200 shrink-0 max-h-16 overflow-y-auto">
+          <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+          <div className="font-mono leading-tight">{errorMessage}</div>
         </div>
       )}
     </div>

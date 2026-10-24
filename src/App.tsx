@@ -29,12 +29,13 @@ import {
   ChevronUp,
   Award,
   ArrowRight,
-  Layers,
   Eye,
   Code2,
-  Compass,
   CheckCircle2,
   Lock,
+  Columns,
+  Maximize2,
+  X,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'agrocode_skripsi_progress_v2';
@@ -90,7 +91,7 @@ function loadProgress(): SavedProgress {
     unlockedTechIds: ['tech_basic_implements'],
     cropBank: { wortel: 8, gandum: 4, jagung: 2 },
     savedCodeByLevel: {},
-    unlockAllThesisMode: true, // Default enabled so thesis examiners can test all 10 levels immediately
+    unlockAllThesisMode: true,
   };
 }
 
@@ -117,16 +118,37 @@ export default function App() {
   const [simSpeed, setSimSpeed] = useState<1 | 2 | 4>(2);
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  // UI Dock & Panels Visibility
-  const [isDockCollapsed, setIsDockCollapsed] = useState<boolean>(false);
-  const [showCodePanelDesktop, setShowCodePanelDesktop] = useState<boolean>(true);
+  // Adaptive View Mode for Android Portrait, Android Landscape & Desktop:
+  // 'split' = 3D + Code side-by-side (landscape) or top-bottom (portrait)
+  // '3d'    = Full-viewport 3D Farm with bottom execution controls
+  // 'code'  = Full-viewport Python Editor with bottom execution controls
+  const [viewMode, setViewMode] = useState<'split' | '3d' | 'code'>('split');
   const [showHudPanelDesktop, setShowHudPanelDesktop] = useState<boolean>(true);
+  const [isDockCollapsed, setIsDockCollapsed] = useState<boolean>(false);
   const [inspectedTile, setInspectedTile] = useState<TileData | null>(null);
+
+  // Detect compact landscape (e.g. Android phone in landscape: width > height and height < 560)
+  const [viewportSize, setViewportSize] = useState<{ w: number; h: number }>(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    h: typeof window !== 'undefined' ? window.innerHeight : 768,
+  }));
+
+  useEffect(() => {
+    const onResize = () => {
+      setViewportSize({ w: window.innerWidth, h: window.innerHeight });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const isDesktopLarge = viewportSize.w >= 1024 && viewportSize.h >= 600;
+  const isLandscapeCompact = !isDesktopLarge && viewportSize.w > viewportSize.h;
 
   // Modals
   const [isTechModalOpen, setIsTechModalOpen] = useState<boolean>(false);
   const [isApiModalOpen, setIsApiModalOpen] = useState<boolean>(false);
   const [isThesisModalOpen, setIsThesisModalOpen] = useState<boolean>(false);
+  const [isMobileStatusOpen, setIsMobileStatusOpen] = useState<boolean>(false);
   const [showVictoryModal, setShowVictoryModal] = useState<boolean>(false);
 
   // Generator runner ref
@@ -370,13 +392,13 @@ export default function App() {
   const latestLog = world.logs[world.logs.length - 1];
 
   // ============================================================================
-  // 1. TITLE SCREEN SHELL (Full-Viewport 3D Live World + SVG Title Lockup)
+  // 1. TITLE SCREEN SHELL (Responsive for Android Portrait, Landscape & Desktop)
   // ============================================================================
   if (gameScreen === 'TITLE') {
     const completedCount = Object.keys(progress.completedLevels).length;
 
     return (
-      <div className="relative w-screen h-screen overflow-hidden bg-[#121518] select-none">
+      <div className="relative w-screen h-dvh overflow-hidden bg-[#121518] select-none">
         {/* Live 3D Isometric Farm Diorama Background */}
         <div className="absolute inset-0 opacity-85">
           <FarmViewport3D
@@ -388,50 +410,51 @@ export default function App() {
         </div>
 
         {/* Measured Gradient Scrim for 4.5:1 Contrast */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0E1114] via-[#0E1114]/65 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0E1114] via-[#0E1114]/70 to-[#0E1114]/30" />
 
         {/* Interactive Overlay Content */}
-        <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 md:p-10 overflow-y-auto">
+        <div className="relative z-10 w-full h-full flex flex-col justify-between p-3 sm:p-6 md:p-8 overflow-y-auto">
           {/* Top Minimal Bar */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5 text-xs font-mono text-emerald-400">
-              <span>SIMULASI OTOMASI PERTANIAN DARAT · PYTHON 3</span>
+          <div className="flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-emerald-400 truncate">
+              <span>SIMULASI OTOMASI PERTANIAN · PYTHON 3</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsTechModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-xs font-medium text-zinc-200 hover:bg-[#232830] transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-[11px] sm:text-xs font-medium text-zinc-200 hover:bg-[#232830] transition-colors cursor-pointer"
               >
                 <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Pohon Teknologi</span>
+                <span className="hidden xs:inline">Pohon Teknologi</span>
+                <span className="xs:hidden">Tech</span>
               </button>
               <button
                 type="button"
                 onClick={() => setIsApiModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-xs font-medium text-zinc-200 hover:bg-[#232830] transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-[11px] sm:text-xs font-medium text-zinc-200 hover:bg-[#232830] transition-colors cursor-pointer"
               >
                 <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-                <span>Dokumentasi API</span>
+                <span>API Python</span>
               </button>
               <button
                 type="button"
                 onClick={toggleMute}
-                className="p-2 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-lg bg-[#181B20]/95 border border-[#2D333D] text-zinc-300 hover:text-white transition-colors cursor-pointer"
                 title={isMuted ? 'Nyalakan Suara' : 'Matikan Suara'}
               >
-                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
 
           {/* Center-Left Hero Lockup & Level Curriculum Grid */}
-          <div className="my-auto max-w-5xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center py-6">
+          <div className="my-auto max-w-5xl w-full mx-auto grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-center py-2 sm:py-4">
             {/* Bespoke SVG Title Lockup */}
-            <div className="lg:col-span-6 space-y-5">
+            <div className="md:col-span-6 space-y-2.5 sm:space-y-4">
               <svg
-                viewBox="0 0 460 110"
-                className="w-full max-w-md h-auto drop-shadow-2xl"
+                viewBox="0 0 460 105"
+                className="w-full max-w-[260px] sm:max-w-md h-auto drop-shadow-2xl"
                 aria-label="AgroCode Ladang Otomatis"
               >
                 <defs>
@@ -442,7 +465,7 @@ export default function App() {
                   </linearGradient>
                 </defs>
                 {/* Tractor Icon Emblem */}
-                <g transform="translate(4, 14)">
+                <g transform="translate(4, 12)">
                   <rect x="0" y="28" width="52" height="24" rx="5" fill="#22C55E" />
                   <rect x="8" y="6" width="26" height="24" rx="4" fill="#15803D" />
                   <rect x="12" y="10" width="18" height="14" rx="2" fill="#93C5FD" />
@@ -452,7 +475,7 @@ export default function App() {
                 </g>
                 <text
                   x="72"
-                  y="54"
+                  y="52"
                   fill="url(#agroGrad)"
                   fontFamily="Plus Jakarta Sans, sans-serif"
                   fontWeight="800"
@@ -463,7 +486,7 @@ export default function App() {
                 </text>
                 <text
                   x="74"
-                  y="82"
+                  y="80"
                   fill="#F4F4F5"
                   fontFamily="JetBrains Mono, monospace"
                   fontWeight="600"
@@ -474,16 +497,16 @@ export default function App() {
                 </text>
               </svg>
 
-              <p className="text-sm sm:text-base text-zinc-300 leading-relaxed max-w-xl">
-                Program armada <strong className="text-white">Traktor, Penabur, Pemanen, dan Pengangkut</strong> menggunakan bahasa{' '}
-                <strong className="text-emerald-400 font-mono">Python</strong>. Kelola bahan bakar solar, medan berlumpur, pergantian alat tempel, bengkel, dan logistik gudang.
+              <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed max-w-xl">
+                Program armada <strong className="text-white">Tractor, Harvester, dan Hauler</strong> menggunakan sintaks{' '}
+                <strong className="text-emerald-400 font-mono">Python</strong> berbahasa Inggris standar. Kelola bahan bakar solar, lumpur, bengkel, dan logistik gudang.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setGameScreen('PLAYING')}
-                  className="flex items-center gap-2.5 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-xl transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-xl transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Mulai Simulasi ({currentLevel.title.split(':')[0]})</span>
@@ -491,26 +514,26 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsThesisModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[#1E2229] hover:bg-[#282E38] border border-[#323946] text-zinc-200 font-semibold text-xs transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#1E2229] hover:bg-[#282E38] border border-[#323946] text-zinc-200 font-semibold text-xs transition-colors cursor-pointer"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-                  <span>Data Evaluasi Skripsi ({completedCount}/10)</span>
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Data Skripsi ({completedCount}/10)</span>
                 </button>
               </div>
             </div>
 
             {/* 10-Level Selector Card */}
-            <div className="lg:col-span-6 p-4 rounded-xl bg-[#16191E]/95 border border-[#2A303C] shadow-2xl">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-zinc-100 uppercase tracking-wider">
+            <div className="md:col-span-6 p-3 sm:p-4 rounded-xl bg-[#16191E]/95 border border-[#2A303C] shadow-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] sm:text-xs font-bold text-zinc-100 uppercase tracking-wider">
                   Kurikulum 10 Level Simulasi
                 </span>
-                <span className="text-xs font-mono text-emerald-400 tabular-nums">
+                <span className="text-[11px] font-mono text-emerald-400 tabular-nums">
                   {completedCount}/10 Selesai
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[310px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2 max-h-[180px] sm:max-h-[270px] overflow-y-auto pr-1">
                 {LEVELS.map((lvl) => {
                   const rec = progress.completedLevels[lvl.id];
                   const isUnlocked =
@@ -528,21 +551,21 @@ export default function App() {
                         switchLevel(lvl.id);
                         setGameScreen('PLAYING');
                       }}
-                      className={`p-2.5 rounded-lg border text-left transition-all flex items-start justify-between gap-2 cursor-pointer disabled:opacity-45 ${
+                      className={`p-2 rounded-lg border text-left transition-all flex items-start justify-between gap-2 cursor-pointer disabled:opacity-45 ${
                         isSelected
                           ? 'bg-emerald-950/50 border-emerald-500/70 text-white'
                           : 'bg-[#1D2128] hover:bg-[#252A34] border-[#2C323D] text-zinc-300'
                       }`}
                     >
                       <div className="min-w-0">
-                        <div className="text-[10px] font-mono text-zinc-400">
+                        <div className="text-[9px] font-mono text-zinc-400 truncate">
                           {lvl.stage}
                         </div>
-                        <div className="text-xs font-bold truncate mt-0.5">
+                        <div className="text-[11px] sm:text-xs font-bold truncate mt-0.5">
                           {lvl.title}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right font-mono text-xs">
+                      <div className="shrink-0 text-right font-mono text-[11px]">
                         {rec ? (
                           <span className="text-amber-400">{'★'.repeat(rec.stars)}</span>
                         ) : isUnlocked ? (
@@ -558,9 +581,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Single Flat Control-Hint Line per Game Craft Guidelines */}
-          <div className="text-center text-xs font-mono text-zinc-400">
-            Enter / Space Mulai · Drag Mouse Putar Kamera 3D · Scroll Zoom · Esc Jeda Simulasi
+          {/* Single Flat Control-Hint Line */}
+          <div className="text-center text-[10px] sm:text-xs font-mono text-zinc-400 shrink-0 pt-1">
+            Geser Layar Putar Kamera 3D · Cubit / Tombol +/- untuk Zoom · Pilih Level untuk Mulai
           </div>
         </div>
 
@@ -587,29 +610,32 @@ export default function App() {
   }
 
   // ============================================================================
-  // 2. ACTIVE PLAY WORKSPACE (Responsive Desktop 3D + Collapsible Dock & Mobile Split)
+  // 2. ACTIVE PLAY WORKSPACE (Optimized for Android Landscape, Portrait & Desktop)
   // ============================================================================
+  const show3DPane = viewMode === 'split' || viewMode === '3d';
+  const showCodePane = viewMode === 'split' || viewMode === 'code';
+
   return (
-    <div className="relative w-screen h-screen flex flex-col bg-[#121518] overflow-hidden select-none">
-      {/* Top Perimeter Status & Level Bar */}
-      <header className="h-12 px-3 sm:px-5 bg-[#181B20] border-b border-[#282D37] flex items-center justify-between gap-3 shrink-0 z-20">
+    <div className="relative w-screen h-dvh flex flex-col bg-[#121518] overflow-hidden select-none">
+      {/* Compact Top Perimeter Bar (40px on Android, 44px on Desktop) */}
+      <header className="h-10 sm:h-11 px-2 sm:px-4 bg-[#181B20] border-b border-[#282D37] flex items-center justify-between gap-1.5 shrink-0 z-30">
         {/* Left: Brand & Level Selector */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           <button
             type="button"
             onClick={() => {
               stopTimer();
               setGameScreen('TITLE');
             }}
-            className="text-sm font-extrabold tracking-tight text-emerald-400 hover:text-emerald-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="text-xs sm:text-sm font-extrabold tracking-tight text-emerald-400 hover:text-emerald-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             AGROCODE
           </button>
-          <span className="text-zinc-600">/</span>
+          <span className="text-zinc-600 text-xs">/</span>
           <select
             value={currentLevelId}
             onChange={(e) => switchLevel(Number(e.target.value))}
-            className="bg-[#121518] border border-[#2E3440] rounded px-2.5 py-1 text-xs font-semibold text-zinc-100 focus:outline-none focus:border-emerald-500 truncate max-w-[220px] sm:max-w-xs cursor-pointer"
+            className="bg-[#121518] border border-[#2E3440] rounded px-1.5 sm:px-2 py-0.5 text-[11px] sm:text-xs font-semibold text-zinc-100 focus:outline-none focus:border-emerald-500 truncate max-w-[135px] xs:max-w-[180px] sm:max-w-xs cursor-pointer"
           >
             {LEVELS.map((lvl) => {
               const rec = progress.completedLevels[lvl.id];
@@ -624,65 +650,102 @@ export default function App() {
           </select>
         </div>
 
-        {/* Center: Objective Summary on Desktop */}
+        {/* Center: Objective Summary on Wide Desktop */}
         <div className="hidden xl:flex items-center gap-2 text-xs text-zinc-300 truncate max-w-md">
           <span className="text-zinc-500 font-mono">Misi:</span>
           <span className="truncate">{currentLevel.objective.description}</span>
         </div>
 
-        {/* Right: Workspace Toggles & Modals */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowCodePanelDesktop((v) => !v)}
-            className={`hidden lg:flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer ${
-              showCodePanelDesktop
-                ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300'
-                : 'bg-[#222730] border-[#303744] text-zinc-400'
-            }`}
-            title="Tampilkan / Sembunyikan Panel Kode Python"
-          >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>Editor</span>
-          </button>
+        {/* Right: Adaptive View Mode Switcher (Split / 3D / Kode) & Modals */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* View Mode Pill Group (Works on all Android & Desktop screens) */}
+          <div className="flex items-center bg-[#121518] p-0.5 rounded border border-[#2C323E]">
+            <button
+              type="button"
+              onClick={() => setViewMode('split')}
+              className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
+                viewMode === 'split'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Tampilan Belah Layar (Ladang 3D + Editor Python)"
+            >
+              <Columns className="w-3 h-3" />
+              <span>Split</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('3d')}
+              className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
+                viewMode === '3d'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Layar Penuh Ladang 3D"
+            >
+              <Maximize2 className="w-3 h-3" />
+              <span>3D</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('code')}
+              className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-semibold transition-colors cursor-pointer ${
+                viewMode === 'code'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Layar Penuh Editor Kode Python"
+            >
+              <Code2 className="w-3 h-3" />
+              <span>Kode</span>
+            </button>
+          </div>
 
+          {/* Status Button (Toggles desktop HUD or opens Mobile Status Sheet) */}
           <button
             type="button"
-            onClick={() => setShowHudPanelDesktop((v) => !v)}
-            className={`hidden lg:flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-colors cursor-pointer ${
-              showHudPanelDesktop
+            onClick={() => {
+              if (isDesktopLarge) {
+                setShowHudPanelDesktop((v) => !v);
+              } else {
+                setIsMobileStatusOpen(true);
+              }
+            }}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+              isDesktopLarge && showHudPanelDesktop
                 ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300'
-                : 'bg-[#222730] border-[#303744] text-zinc-400'
+                : 'bg-[#222730] border-[#303744] text-zinc-200 hover:bg-[#2C323E]'
             }`}
-            title="Tampilkan / Sembunyikan Status Mesin"
+            title="Status Mesin & Misi"
           >
-            <Eye className="w-3.5 h-3.5" />
-            <span>Status</span>
+            <Eye className="w-3 h-3 text-emerald-400" />
+            <span className="hidden sm:inline">Status</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsTechModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-xs font-medium text-zinc-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-[11px] font-medium text-zinc-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Pohon Teknologi"
           >
-            <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Tech Tree</span>
+            <Cpu className="w-3 h-3 text-emerald-400" />
+            <span className="hidden md:inline">Tech</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsThesisModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-xs font-medium text-zinc-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-[11px] font-medium text-zinc-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             title="Laporan & Ekspor Data Skripsi"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Data Skripsi</span>
+            <FileSpreadsheet className="w-3 h-3 text-amber-400" />
+            <span className="hidden md:inline">Skripsi</span>
           </button>
 
           <button
             type="button"
             onClick={toggleMute}
-            className="p-1.5 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-zinc-300 cursor-pointer"
+            className="p-1 rounded bg-[#222730] hover:bg-[#2C323E] border border-[#303744] text-zinc-300 cursor-pointer"
             title={isMuted ? 'Suara Mati' : 'Suara Aktif'}
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -690,49 +753,84 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Split / Full-Viewport Body (Supports Mobile Top-Bottom Split & Desktop Floating Overlay) */}
-      <div className="relative flex-1 flex flex-col lg:block min-h-0 overflow-hidden">
-        {/* 3D Farm Viewport (Top 46% on Mobile Portrait, 100% Full-Bleed on Desktop) */}
-        <div className="relative w-full h-[45%] lg:h-full shrink-0">
-          <FarmViewport3D
-            world={world}
-            selectedVehicleId={selectedVehicleId}
-            onSelectVehicle={setSelectedVehicleId}
-            onSelectTile={(t) => setInspectedTile(t)}
-            cameraPreset={cameraPreset}
-          />
+      {/* ========================================================================
+          MAIN WORKSPACE BODY:
+          - Desktop Large (>=1024x600): Full-bleed 3D canvas + floating overlays
+          - Android Landscape (width > height): Side-by-side 50%/50% flex-row
+          - Android Portrait (height >= width): Top 40% 3D / Bottom 60% Code flex-col
+         ======================================================================== */}
+      <div
+        className={`relative flex-1 min-h-0 overflow-hidden ${
+          isDesktopLarge
+            ? 'block'
+            : isLandscapeCompact
+            ? 'flex flex-row'
+            : 'flex flex-col'
+        }`}
+      >
+        {/* 1. 3D FARM VIEWPORT PANE */}
+        {show3DPane && (
+          <div
+            className={
+              isDesktopLarge
+                ? 'relative w-full h-full'
+                : viewMode === '3d'
+                ? 'relative flex-1 w-full h-full min-h-0'
+                : isLandscapeCompact
+                ? 'relative w-[48%] h-full shrink-0 border-r border-[#282D37]'
+                : 'relative w-full h-[38%] shrink-0 border-b border-[#282D37]'
+            }
+          >
+            <FarmViewport3D
+              world={world}
+              selectedVehicleId={selectedVehicleId}
+              onSelectVehicle={setSelectedVehicleId}
+              onSelectTile={(t) => setInspectedTile(t)}
+              cameraPreset={cameraPreset}
+              onChangeCameraPreset={setCameraPreset}
+              onOpenMobileStatus={() => setIsMobileStatusOpen(true)}
+            />
 
-          {/* Inspected Tile Mini Callout (Bottom-Left on Mobile / Top-Center-Right on Desktop) */}
-          {inspectedTile && (
-            <div className="absolute top-3 right-3 lg:right-[310px] z-10 px-3 py-1.5 rounded bg-[#181B20]/95 border border-[#2D333D] text-[11px] font-mono text-zinc-200 flex items-center gap-2 shadow-lg">
-              <span>
-                Petak ({inspectedTile.x}, {inspectedTile.z}):{' '}
-                <strong className="text-emerald-400">{inspectedTile.terrain}</strong>
-              </span>
-              <span>·</span>
-              <span>{inspectedTile.soil}</span>
-              {inspectedTile.crop !== 'kosong' && (
-                <>
-                  <span>·</span>
-                  <span className="text-amber-300">
-                    {inspectedTile.crop} ({inspectedTile.growth}%)
-                  </span>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setInspectedTile(null)}
-                className="text-zinc-400 hover:text-white ml-1 cursor-pointer"
-              >
-                ×
-              </button>
-            </div>
-          )}
-        </div>
+            {/* Inspected Tile Mini Callout */}
+            {inspectedTile && (
+              <div className="absolute bottom-2 left-2 z-20 px-2.5 py-1 rounded bg-[#181B20]/95 border border-[#2D333D] text-[10px] font-mono text-zinc-200 flex items-center gap-1.5 shadow-lg">
+                <span>
+                  ({inspectedTile.x},{inspectedTile.z}){' '}
+                  <strong className="text-emerald-400">{inspectedTile.terrain}</strong>
+                </span>
+                <span>·</span>
+                <span>{inspectedTile.soil}</span>
+                {inspectedTile.crop !== 'kosong' && (
+                  <>
+                    <span>·</span>
+                    <span className="text-amber-300">
+                      {inspectedTile.crop} ({inspectedTile.growth}%)
+                    </span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setInspectedTile(null)}
+                  className="text-zinc-400 hover:text-white ml-1 cursor-pointer"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Desktop Floating Left Panel OR Mobile Bottom Split: Python Code Editor */}
-        {showCodePanelDesktop && (
-          <div className="flex-1 lg:flex-none lg:absolute lg:top-3 lg:left-3 lg:bottom-20 lg:w-[430px] xl:w-[470px] z-10 p-2 lg:p-0 min-h-0 flex flex-col">
+        {/* 2. PYTHON CODE EDITOR PANE */}
+        {showCodePane && (
+          <div
+            className={
+              isDesktopLarge
+                ? viewMode === 'code'
+                  ? 'absolute inset-3 bottom-16 z-20 flex flex-col'
+                  : 'absolute top-3 left-3 bottom-16 w-[430px] xl:w-[470px] z-10 flex flex-col'
+                : 'flex-1 min-w-0 min-h-0 flex flex-col p-1 sm:p-1.5 bg-[#121518]'
+            }
+          >
             <PythonCodeEditor
               code={code}
               onChange={handleCodeChange}
@@ -749,9 +847,9 @@ export default function App() {
           </div>
         )}
 
-        {/* Desktop Floating Right Panel: Field Statistics & Machine Status (VE01) */}
-        {showHudPanelDesktop && (
-          <div className="hidden lg:block lg:absolute lg:top-3 lg:right-3 lg:w-[285px] z-10 pointer-events-auto">
+        {/* 3. DESKTOP FLOATING RIGHT PANEL: Machine Status HUD */}
+        {isDesktopLarge && showHudPanelDesktop && viewMode !== 'code' && (
+          <div className="absolute top-3 right-3 w-[285px] z-10 pointer-events-auto">
             <MachineStatusHUD
               world={world}
               selectedVehicleId={selectedVehicleId}
@@ -760,190 +858,292 @@ export default function App() {
           </div>
         )}
 
-        {/* Collapsible Unified Bottom Control Dock (Follows Three.js Skill Section 5) */}
-        <div
-          className={`lg:absolute lg:bottom-3 lg:left-1/2 lg:-translate-x-1/2 z-20 w-full lg:max-w-[820px] px-2 transition-transform duration-200 ${
-            isDockCollapsed ? 'lg:translate-y-[calc(100%-28px)]' : 'lg:translate-y-0'
-          }`}
-        >
-          {/* Collapse / Expand Toggle Tab (Desktop) */}
-          <div className="hidden lg:flex justify-center">
+        {/* 4. DESKTOP FLOATING COLLAPSIBLE BOTTOM CONTROL DOCK */}
+        {isDesktopLarge && (
+          <div
+            className={`absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-[820px] px-2 transition-transform duration-200 ${
+              isDockCollapsed ? 'translate-y-[calc(100%-26px)]' : 'translate-y-0'
+            }`}
+          >
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setIsDockCollapsed((c) => !c)}
+                className="flex items-center gap-1 px-3 py-0.5 rounded-t-md bg-[#181B20] border border-b-0 border-[#2D333D] text-[11px] font-mono text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                {isDockCollapsed ? (
+                  <>
+                    <ChevronUp className="w-3 h-3" />
+                    <span>Tampilkan Kontrol Simulasi</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3 h-3" />
+                    <span>Sembunyikan Kontrol</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#181B20]/95 border border-[#2D333D] shadow-2xl">
+              <div className="flex items-center gap-1.5">
+                {!isRunning ? (
+                  <button
+                    type="button"
+                    onClick={world.status === 'paused' ? resumeSimulation : startAutoRun}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>{world.status === 'paused' ? 'Lanjutkan' : 'Jalankan Kode'}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={pauseSimulation}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                    <span>Jeda</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isRunning}
+                  onClick={executeSingleStep}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#242933] hover:bg-[#2E3542] disabled:opacity-40 text-zinc-200 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <StepForward className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Langkah</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={resetSimulationWorld}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#242933] hover:bg-[#2E3542] text-zinc-300 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 min-w-0 flex-1 px-2 text-xs font-mono truncate">
+                <span className="text-zinc-500 shrink-0">[Log]</span>
+                <span
+                  className={`truncate ${
+                    latestLog?.type === 'error'
+                      ? 'text-red-400'
+                      : latestLog?.type === 'success'
+                      ? 'text-emerald-400'
+                      : 'text-zinc-300'
+                  }`}
+                >
+                  {latestLog ? latestLog.message : 'Siap menjalankan kode Python.'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center bg-[#121518] p-0.5 rounded border border-[#262B33]">
+                  {([1, 2, 4] as const).map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setSimSpeed(spd)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer ${
+                        simSpeed === spd
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center bg-[#121518] p-0.5 rounded border border-[#262B33]">
+                  {(
+                    [
+                      { id: 'isometric', label: '3D Iso' },
+                      { id: 'top', label: 'Atas' },
+                      { id: 'follow', label: 'Ikuti' },
+                    ] as const
+                  ).map((cam) => (
+                    <button
+                      key={cam.id}
+                      type="button"
+                      onClick={() => setCameraPreset(cam.id)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                        cameraPreset === cam.id
+                          ? 'bg-[#282E38] text-emerald-300'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {cam.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================
+          ANDROID / MOBILE COMPACT BOTTOM EXECUTION BAR (Single-line 38px)
+         ======================================================================== */}
+      {!isDesktopLarge && (
+        <div className="h-10 px-2 bg-[#181B20] border-t border-[#282D37] flex items-center justify-between gap-1.5 shrink-0 z-30">
+          {/* Left: Run / Step / Reset */}
+          <div className="flex items-center gap-1 shrink-0">
+            {!isRunning ? (
+              <button
+                type="button"
+                onClick={world.status === 'paused' ? resumeSimulation : startAutoRun}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>{world.status === 'paused' ? 'Lanjut' : 'Jalankan'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={pauseSimulation}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Pause className="w-3 h-3 fill-current" />
+                <span>Jeda</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => setIsDockCollapsed((c) => !c)}
-              className="flex items-center gap-1 px-3 py-0.5 rounded-t-md bg-[#181B20] border border-b-0 border-[#2D333D] text-[11px] font-mono text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              disabled={isRunning}
+              onClick={executeSingleStep}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-[#242933] hover:bg-[#2E3542] disabled:opacity-40 text-zinc-200 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              {isDockCollapsed ? (
-                <>
-                  <ChevronUp className="w-3 h-3" />
-                  <span>Tampilkan Kontrol Simulasi</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-3 h-3" />
-                  <span>Sembunyikan Kontrol</span>
-                </>
-              )}
+              <StepForward className="w-3 h-3 text-sky-400" />
+              <span>Langkah</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={resetSimulationWorld}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-[#242933] hover:bg-[#2E3542] text-zinc-300 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span className="hidden xs:inline">Reset</span>
             </button>
           </div>
 
-          {/* Main Dock Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#181B20]/95 border border-[#2D333D] shadow-2xl">
-            {/* Primary Execution Controls */}
-            <div className="flex items-center gap-1.5">
-              {!isRunning ? (
-                <button
-                  type="button"
-                  onClick={world.status === 'paused' ? resumeSimulation : startAutoRun}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{world.status === 'paused' ? 'Lanjutkan' : 'Jalankan Kode'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={pauseSimulation}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  <Pause className="w-3.5 h-3.5 fill-current" />
-                  <span>Jeda</span>
-                </button>
-              )}
+          {/* Middle: Live Log Ticker */}
+          <div className="flex-1 min-w-0 px-1.5 text-[10px] font-mono truncate text-center sm:text-left">
+            <span
+              className={`truncate ${
+                latestLog?.type === 'error'
+                  ? 'text-red-400'
+                  : latestLog?.type === 'success'
+                  ? 'text-emerald-400'
+                  : 'text-zinc-400'
+              }`}
+            >
+              {latestLog ? latestLog.message : currentLevel.objective.description}
+            </span>
+          </div>
 
+          {/* Right: Speed 1x/2x/4x */}
+          <div className="flex items-center bg-[#121518] p-0.5 rounded border border-[#262B33] shrink-0">
+            {([1, 2, 4] as const).map((spd) => (
               <button
+                key={spd}
                 type="button"
-                disabled={isRunning}
-                onClick={executeSingleStep}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#242933] hover:bg-[#2E3542] disabled:opacity-40 text-zinc-200 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                title="Eksekusi 1 Langkah (Step-by-Step Debugging)"
-              >
-                <StepForward className="w-3.5 h-3.5 text-sky-400" />
-                <span>Langkah</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={resetSimulationWorld}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#242933] hover:bg-[#2E3542] text-zinc-300 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                title="Reset Posisi Kendaraan & Ladang"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset</span>
-              </button>
-            </div>
-
-            {/* Live Status Log Ticker */}
-            <div className="hidden md:flex items-center gap-2 min-w-0 flex-1 px-2 text-xs font-mono truncate">
-              <span className="text-zinc-500 shrink-0">[Log]</span>
-              <span
-                className={`truncate ${
-                  latestLog?.type === 'error'
-                    ? 'text-red-400'
-                    : latestLog?.type === 'success'
-                    ? 'text-emerald-400'
-                    : 'text-zinc-300'
+                onClick={() => setSimSpeed(spd)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer ${
+                  simSpeed === spd
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                {latestLog ? latestLog.message : 'Siap menjalankan kode Python.'}
-              </span>
-            </div>
-
-            {/* Speed & Camera Presets */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Speed Selector */}
-              <div className="flex items-center bg-[#121518] p-0.5 rounded border border-[#262B33]">
-                {([1, 2, 4] as const).map((spd) => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => setSimSpeed(spd)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer ${
-                      simSpeed === spd
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
-              </div>
-
-              {/* Camera View Selector */}
-              <div className="hidden sm:flex items-center bg-[#121518] p-0.5 rounded border border-[#262B33]">
-                {(
-                  [
-                    { id: 'isometric', label: '3D Iso' },
-                    { id: 'top', label: 'Atas' },
-                    { id: 'follow', label: 'Ikuti' },
-                  ] as const
-                ).map((cam) => (
-                  <button
-                    key={cam.id}
-                    type="button"
-                    onClick={() => setCameraPreset(cam.id)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                      cameraPreset === cam.id
-                        ? 'bg-[#282E38] text-emerald-300'
-                        : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {cam.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                {spd}x
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ========================================================================
+          ANDROID / MOBILE MACHINE STATUS & MISSION DRAWER MODAL
+         ======================================================================== */}
+      {isMobileStatusOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3">
+          <div className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-xl bg-[#181B20] border border-[#2D333D] p-3 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#262B33]">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-mono">
+                Telemetri Kendaraan & Misi Level {currentLevel.id}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileStatusOpen(false)}
+                className="p-1 rounded bg-[#232832] text-zinc-300 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <MachineStatusHUD
+              world={world}
+              selectedVehicleId={selectedVehicleId}
+              onSelectVehicle={setSelectedVehicleId}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Victory / Level Completed Modal */}
       {showVictoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-xl bg-[#181B20] border border-emerald-500/50 p-6 shadow-2xl text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto">
-              <Award className="w-6 h-6 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3">
+          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-xl bg-[#181B20] border border-emerald-500/50 p-4 sm:p-6 shadow-2xl text-center space-y-3 sm:space-y-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto">
+              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
             </div>
 
             <div>
-              <div className="text-xs font-mono text-emerald-400 uppercase">
+              <div className="text-[11px] font-mono text-emerald-400 uppercase">
                 Simulasi Berhasil
               </div>
-              <h2 className="text-xl font-bold text-white mt-1">
+              <h2 className="text-base sm:text-xl font-bold text-white mt-0.5">
                 {currentLevel.title} Selesai!
               </h2>
-              <div className="text-2xl text-amber-400 tracking-widest mt-2">
+              <div className="text-xl sm:text-2xl text-amber-400 tracking-widest mt-1">
                 {'★'.repeat(calculateStarRating(world))}
                 {'☆'.repeat(3 - calculateStarRating(world))}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 p-3 rounded-lg bg-[#121518] border border-[#252A34] font-mono text-xs tabular-nums">
+            <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-[#121518] border border-[#252A34] font-mono text-xs tabular-nums">
               <div>
                 <div className="text-zinc-400 text-[10px]">Total Tick</div>
-                <div className="text-sm font-bold text-white mt-0.5">
+                <div className="text-xs sm:text-sm font-bold text-white mt-0.5">
                   {world.metrics.ticks}
                 </div>
               </div>
               <div>
                 <div className="text-zinc-400 text-[10px]">Solar Terpakai</div>
-                <div className="text-sm font-bold text-amber-400 mt-0.5">
+                <div className="text-xs sm:text-sm font-bold text-amber-400 mt-0.5">
                   {world.metrics.fuelUsed} L
                 </div>
               </div>
               <div>
                 <div className="text-zinc-400 text-[10px]">Total Panen</div>
-                <div className="text-sm font-bold text-emerald-400 mt-0.5">
+                <div className="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">
                   {world.metrics.harvestedTotal}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowVictoryModal(false)}
-                className="px-4 py-2 rounded-lg bg-[#242933] hover:bg-[#2E3542] text-xs font-semibold text-zinc-200 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg bg-[#242933] hover:bg-[#2E3542] text-xs font-semibold text-zinc-200 transition-colors cursor-pointer"
               >
                 Tinjau Kode
               </button>
@@ -953,7 +1153,7 @@ export default function App() {
                   setShowVictoryModal(false);
                   setIsTechModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-lg bg-[#242933] hover:bg-[#2E3542] text-xs font-semibold text-amber-300 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg bg-[#242933] hover:bg-[#2E3542] text-xs font-semibold text-amber-300 transition-colors cursor-pointer"
               >
                 Pohon Teknologi
               </button>
